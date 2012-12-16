@@ -1,41 +1,33 @@
-#Region ;**** Directives created by AutoIt3Wrapper_GUI ****
-; Some AV do not like UPX compressed exe...
-#AutoIt3Wrapper_UseUpx=n
-#AutoIt3Wrapper_Compile_Both=y
-#AutoIt3Wrapper_UseX64=y
-#AutoIt3Wrapper_Res_requestedExecutionLevel=asInvoker
-#EndRegion ;**** Directives created by AutoIt3Wrapper_GUI ****
-#cs ----------------------------------------------------------------------------
-
- AutoIt Version: 3.3.8.1
- Author:         onemoretime
-
- Ref : http://mike.kaply.com/2012/02/14/customizing-the-firefox-installer-on-windows-2012/
- Ref : http://msiworld.blogspot.com.au/2012/01/packaging-mozilla-firefox-901.html
- Ref : http://howto.gumph.org/content/customize-firefox-installer/
- Ref : http://www.thedecoderwheel.com/?p=1329
-
- autoconf ? autoconfig.cfg ?
-
- Script Functions:
-	CheckPrerequisite($arrPrereq)
-	CleanUpWorkingDir($strDirToRemove)
-	Uncompress($strFileName,$strDirTarget)
-	Compress($strDirToCompress,$strDirTarget,$strFileName, $strAppName)
-	Heart($strAppVersion)
-
- Heart($strAppVersion)
-	The heart.
-	Repack the package for an real unattended install
-	Must discard:
-		- bookmarks migration popup
-		- default nav popup
-		- crash detection
-	Should modify
-		- default start page
+#Region Header
+; #INDEX# =======================================================================================================================
+; Title .............: Firefox repackager
+; Filename...........: RepackAppFireFox.au3
+; AutoIt Version ....: 3.3++
+; Requirements ......: AutoIt v3.3 +
+; Uses...............:
+; Language ..........: English
+; Description .......: Repackaging of FireFox
+; Author(s) .........: onemoretime
+; Notes .............: submodule of a future Repack.au3
+; Available Functions:
+;		CheckPrerequisite
+;		CleanUpWorkingDir
+;		Uncompress
+;		Compress
+;		Heart
+; Remarks............: None
+; Related............:
+; Link...............: http://mike.kaply.com/2012/02/14/customizing-the-firefox-installer-on-windows-2012/
+; Link...............: http://msiworld.blogspot.com.au/2012/01/packaging-mozilla-firefox-901.html
+; Link...............: http://howto.gumph.org/content/customize-firefox-installer/
+; Link...............: http://www.thedecoderwheel.com/?p=1329
+; Todo...............: quite all the stuff
+; Example............: Yes. See RepackAppFireFox_Test.au3
+; ===============================================================================================================================
 
 ; Repack directives for FF
 #cs
+autoconf ? autoconfig.cfg ?
 	In .\nonlocalized\chrome
 		uncomp brower.jar
 	In .\nonlocalized\defaults\pref\firefox.ini
@@ -51,11 +43,7 @@
 
 	If v16.0.2, uncomp omni.ja (jar file)
 		in core/omni.ja(?)extensions/{...}/install.rdf ???
-#ce
-#ce ----------------------------------------------------------------------------
 
-;;;;;;;;;;;;;;;;;;;;;;;; FootNote ;;;;;;;;;;;;;;;;
-#cs
 FF v16, file blocklist.xml seems cool :
     <pluginItem  blockID="p138">
         <match name="filename" exp="JavaAppletPlugin\.plugin" />
@@ -67,7 +55,7 @@ Lib sqlite3
 #ce
 
 ; RepackFF submodule
-; Careful : Must tale care of the version
+; Careful : Must take care of the version
 #cs
 	1. uncomp FF vX in a temp dir:
 			7za x -w {$strTempPath} "Firefox Setup 2.0.0.5.exe"
@@ -85,113 +73,185 @@ Lib sqlite3
 	6. clean up temp dir and temp files
 #ce
 
-
-
 #include <Array.au3>
+#include <CommonEX.au3>
 
-$strPath = @ScriptDir
-$strRepoPackaged = $strPath & "\repoPackaged"
+#EndRegion Header
 
-$str7zPath = @ScriptDir & "\7za.exe"
-$str7zSFX = @ScriptDir & "\7z.sfx"
+#Region Initialization
 
-Dim $arrayApp[1] ; Name, Path, Version, ExecName
-Dim $arrTemp[1]
-_ArrayAdd($arrTemp,"FireFox")
-_ArrayAdd($arrTemp,$strPath)
-_ArrayAdd($arrTemp,"3.6")
-_ArrayAdd($arrTemp,"Firefox Setup 3.6.exe")
-_ArrayAdd($arrayApp,$arrTemp)
+#EndRegion Initialization
 
-ReDim $arrTemp[1]
-_ArrayAdd($arrTemp,"FireFox")
-_ArrayAdd($arrTemp,$strPath)
-_ArrayAdd($arrTemp,"16.0.2")
-_ArrayAdd($arrTemp,"Firefox Setup 16.0.2.exe")
-_ArrayAdd($arrayApp,$arrTemp)
+#Region Global Variables and Constants
+Global $s7zPath, $s7zSFX
 
-Dim $arrFileToCheck[1]
-_ArrayAdd($arrFileToCheck,$str7zPath)
-_ArrayAdd($arrFileToCheck,$str7zSFX)
+#EndRegion Global Variables and Constants
 
-Func CheckPrerequisite($arrPrereq)
-	Local $intCpteur
-	Local $boolResult = True
-	For $intCpteur = 1 To (UBound($arrPrereq) - 1)
-		If Not (FileExists($arrPrereq[$intCpteur])) Then
-			$boolResult = False
+#Region Local Variables and Constants
+
+#EndRegion Local Variables and Constants
+
+
+
+
+
+
+#Region Public Functions
+; #FUNCTION# ====================================================================================================================
+; Name...........: _CheckPrerequisite
+; Description....: Check file and capabilities
+; Syntax.........: _CheckPrerequisite($asPrereq)
+; Parameters.....: $asPrereq    - Array containing absolute path of needed file
+; Return values..: Success - 0
+;                  Failure - 1 and sets the @error flag to non-zero.
+; Author.........: onemoretime
+; Modified.......:
+; Remarks........: None
+; Related........:
+; Link...........:
+; Todo...........:
+; Example........: No
+; ===============================================================================================================================
+Func _CheckPrerequisite($asPrereq)
+	Local $iCpteur
+	Local $iResult = 0
+	For $iCpteur = 1 To (UBound($asPrereq) - 1)
+		If Not (FileExists($asPrereq[$iCpteur])) Then
+			$iResult += 1
 		EndIf
 	Next
-	Return $boolResult
+	Return $iResult
 EndFunc
-
-Func CleanUpWorkingDir($strDirToRemove)
-	If FileExists($strDirToRemove) Then
-		If Not (DirRemove($strDirToRemove,1)) Then
-			MsgBox(0,"Error", "Unable To cleanup " & $strDirToRemove)
-			return 0
+; #FUNCTION# ====================================================================================================================
+; Name...........: _CleanUpWorkingDir
+; Description....: Cleanup a directory
+; Syntax.........: _CleanUpWorkingDir($sDirToRemove)
+; Parameters.....: $sDirToRemove    - Directory to cleanup
+; Return values..: Success - 0
+;                  Failure - 1 and sets the @error flag to non-zero.
+; Author.........: onemoretime
+; Modified.......:
+; Remarks........: None
+; Related........:
+; Link...........:
+; Todo...........: add preventive check (do not remove c:\ for example...)
+; Example........: No
+; ===============================================================================================================================
+Func _CleanUpWorkingDir($sDirToRemove)
+	If FileExists($sDirToRemove) Then
+		If Not (DirRemove($sDirToRemove,1)) Then
+			_Common_RaiseError("Warning","Unable To cleanup " & $sDirToRemove)
+			return 1
 		Else
-			Return 1
+			Return 0
 		EndIf
 	Else
-		MsgBox(0,"Error", "Nothing to remove")
-		Return 0
+		_Common_RaiseError("Warning","Nothing to remove")
+		Return 1
 	EndIf
 EndFunc
 
-
-Func Uncompress($strFileName,$strDirTarget)
-	Local $str7zParam = " x -w:" & $strDirTarget & "\ " & chr(34) & $strFileName & chr(34)
-	$result = RunWait(@ComSpec & " /c " & $str7zPath & " " & $str7zParam,$strDirTarget,@SW_HIDE)
-	If ($result = 0) Then
+; #FUNCTION# ====================================================================================================================
+; Name...........: _Uncompress
+; Description....: Uncompress an App
+; Syntax.........: _Uncompress($sFileName,$sDirTarget)
+; Parameters.....: $sFileName     - app to uncompress
+;				   $sDirTarget	- Directory to uncompress to
+; Return values..: Success - 0
+;                  Failure - is fatal
+; Author.........: onemoretime
+; Modified.......:
+; Remarks........: None
+; Related........:
+; Link...........:
+; Todo...........: add preventive check (do not remove c:\ for example...)
+; Example........: No
+; ===============================================================================================================================
+Func _Uncompress($sFileName,$sDirTarget)
+	Local $iResult
+	Local $s7zParam = " x -w:" & $sDirTarget & "\ " & chr(34) & $sFileName & chr(34)
+	$iResult = RunWait(@ComSpec & " /c " & $s7zPath & " " & $s7zParam,$sDirTarget,@SW_HIDE)
+	If ($iResult = 0) Then
 		Return 0
 	Else
-		ConsoleWrite(@CRLF & $result & @CRLF)
-		MsgBox(0,"Error","Error while uncompress " & $strFileName & " in " & $strDirTarget)
-		return $result
+		_Common_RaiseError("Fatal","Error while uncompress " & $sFileName & " in " & $sDirTarget)
 	EndIf
 EndFunc
 
 
-; FF Repack Function
-;
-Func Compress($strDirToCompress,$strDirTarget,$strFileName, $strAppName)
-	Local $strCopyConcatParam = " /B " & $str7zSFX & "+" & $strDirTarget & "\app.tag" & "+" _
-		& $strDirTarget & "\Repacked_" & $strFileName & ".7z" _
-		& " " & $strDirTarget & "\Repacked_" & $strFileName & ".exe"
+; #FUNCTION# ====================================================================================================================
+; Name...........: _Compress
+; Description....: Compress an App
+; Syntax.........: _Compress($sDirToCompress,$sDirTarget,$sFileName, $sAppName)
+; Parameters.....: $sDirToCompress  - Directory to compress
+;				   $sDirTarget		- Directory to compress into
+;				   $sFileName		- Target Name without extension
+;				   $sAppName		- Name of the app
+; Return values..: Success - 0
+;                  Failure - 1 and sets the @error flag to non-zero.
+; Author.........: onemoretime
+; Modified.......:
+; Remarks........: None
+; Related........:
+; Link...........:
+; Todo...........: add preventive check (do not remove c:\ for example...)
+; Example........: No
+; ===============================================================================================================================
+Func _Compress($sDirToCompress,$sDirTarget,$sFileName, $sAppName)
+	Local $iResult
+	Local $sCopyConcatParam = " /B " & $s7zSFX & "+" & $sDirTarget & "\app.tag" & "+" _
+		& $sDirTarget & "\Repacked_" & $sFileName & ".7z" _
+		& " " & $sDirTarget & "\Repacked_" & $sFileName & ".exe"
 
-	Local $str7zParam =" a -r -t7z " & $strDirTarget & "\Repacked_" & $strFileName & ".7z" _
+	Local $s7zParam =" a -r -t7z " & $sDirTarget & "\Repacked_" & $sFileName & ".7z" _
 		& " -mx -m0=BCJ2 -m1=LZMA:d24 -m2=LZMA:d19 -m3=LZMA:d19 -mb0:1 -mb0s1:2 -mb0s2:3" _
-		& " " & $strDirToCompress & "\*"
+		& " " & $sDirToCompress & "\*"
 
-	$result = RunWait(@ComSpec & " /c " & $str7zPath & " " & $str7zParam,$strDirTarget,@SW_HIDE)
-	If Not ($result = 0) Then
-		MsgBox(0,"Error","Error while compress " & $strFileName & " in " & $strDirTarget)
-		return $result
+	$iResult = RunWait(@ComSpec & " /c " & $s7zPath & " " & $s7zParam,$sDirTarget,@SW_HIDE)
+	If Not ($iResult = 0) Then
+		MsgBox(0,"Error","Error while compress " & $sFileName & " in " & $sDirTarget)
+		return $iResult
 	EndIf
-	; app.tag creation
-	$hAppTag = FileOpen($strDirTarget & "\app.tag",2)
+	; app.tag creation (overwrites existing app.tag)
+	$hAppTag = FileOpen($sDirTarget & "\app.tag",2)
 	If ($hAppTag = -1) Then
 		MsgBox(0, "Error", "Unable to create app.tag")
 		return 1
 	EndIf
 	FileWriteLine($hAppTag,";!@Install@!UTF-8!")
-	FileWriteLine($hAppTag,"Title=" & chr(34) & $strAppName & chr(34))
+	FileWriteLine($hAppTag,"Title=" & chr(34) & $sAppName & chr(34))
 	FileWriteLine($hAppTag,"RunProgram="& chr(34) & "setup.exe"& chr(34))
 	FileWriteLine($hAppTag,";!@InstallEnd@!")
 	FileClose($hAppTag)
 	; Concat files
 	; copy /B 7zSD.sfx+app.tag+app.7z our_new_installer.exe
-	$result = RunWait(@ComSpec & " /c " & "copy " & $strCopyConcatParam,$strDirTarget,@SW_HIDE)
-	If Not ($result = 0) Then
-		MsgBox(0,"Error","Error while concat files in " & $strDirTarget)
-		return $result
+	$iResult = RunWait(@ComSpec & " /c " & "copy " & $sCopyConcatParam,$sDirTarget,@SW_HIDE)
+	If @error Then
+		MsgBox(0,"Error","Error while concat files in " & $sDirTarget)
+		return $iResult
 	EndIf
+	; remove temp files
+	;FileDelete($sDirTarget & "\app.tag")
+	;FileDelete($sDirTarget & "\Repacked_" & $sFileName & ".7z")
 	; all good & done
 	return 0
 EndFunc
-
-Func Heart($strAppVersion)
+; #FUNCTION# ====================================================================================================================
+; Name...........: _Heart
+; Description....: Do all the modification
+; Syntax.........: _Heart($sAppVersion)
+; Parameters.....: $sAppVersion    - Firefox version to repack
+; Return values..: Success - 0
+;                  Failure - 1 and sets the @error flag to non-zero.
+; Author.........: onemoretime
+; Modified.......:
+; Remarks........: None
+; Related........:
+; Link...........:
+; Todo...........:
+; Example........: No
+; ===============================================================================================================================
+Func _Heart($sAppVersion)
 	; There are a bunch of files to modify
 	; the idea is to load the file, regex the modification, suppress lines and overwrite the file
 	; with same flags
@@ -200,36 +260,10 @@ Func Heart($strAppVersion)
 
 	return 0
 EndFunc
+#EndRegion Public Functions
 
+#Region Embedded DLL Functions
+#EndRegion Embedded DLL Functions
 
-If Not (CheckPrerequisite($arrFileToCheck)) Then
-	MsgBox(0,"Fatal","Prerequisites unachieved")
-	Exit -1
-EndIf
-
-For $intCpteur = 1 To (UBound($arrayApp) - 1)
-	Dim $arrAppToRepack[1]
-	$arrAppToRepack = $arrayApp[$intCpteur]
-	If FileExists($arrAppToRepack[2] & "\" & $arrAppToRepack[4]) Then
-		; temp dir creation. Name format : <AppName>\Temp-<AppVersion>
-		$strAppFullName = $arrAppToRepack[2] & "\" & $arrAppToRepack[4]
-		$strTempPathApp = $strRepoPackaged & "\" & $arrAppToRepack[1] & "\Temp-" & $arrAppToRepack[3]
-		DirCreate($strTempPathApp)
-
-		If (Uncompress($strAppFullName,$strTempPathApp)) Then
-			MsgBox(0,"Error","Uncomp failed")
-		EndIf
-		If (Traitement($arrAppToRepack[3])) Then
-			MsgBox(0,"Error","Repack failed")
-		EndIf
-
-		If (Compress($strTempPathApp,$strRepoPackaged & "\" & $arrAppToRepack[1],$arrAppToRepack[1] & "_" & $arrAppToRepack[3],$arrAppToRepack[1])) Then
-			MsgBox(0,"Error", "Comp failed")
-		EndIf
-
-;~ 		CleanUpWorkingDir($strTempPathApp)
-	Else
-		ContinueLoop
-	EndIf
-Next
-MsgBox(0,"End","End")
+#Region Internal Functions
+#EndRegion Internal Functions
